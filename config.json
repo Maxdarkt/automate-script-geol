@@ -1,0 +1,7 @@
+﻿{
+    "isInit":  true,
+    "delayShutDown":  60,
+    "DestinationPath":  "F:\\100_TEST\\dest",
+    "isShutDown":  "N",
+    "SourcePath":  "F:\\100_TEST\\source"
+}
