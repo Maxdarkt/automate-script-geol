@@ -1,5 +1,5 @@
 ﻿{
-    "isInit":  true,
+    "isInit":  false,
     "delayShutDown":  60,
     "DestinationPath":  "F:\\100_TEST\\dest",
     "isShutDown":  "N",
