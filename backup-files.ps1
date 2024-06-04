@@ -51,7 +51,7 @@ function Set-Configuration {
 }
 
 # Chemin du fichier de configuration
-$configFilePath = Join-Path -Path "./config.json"
+$configFilePath = Join-Path -Path $PSScriptRoot -ChildPath "config.json"
 
 # Fonction pour lancer le mode de configuration
 function Start-Configuration {
