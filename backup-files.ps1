@@ -51,7 +51,7 @@ function Set-Configuration {
 }
 
 # Chemin du fichier de configuration
-$configFilePath = "./config.json"
+$configFilePath = Join-Path -Path "./config.json"
 
 # Fonction pour lancer le mode de configuration
 function Start-Configuration {
@@ -95,6 +95,7 @@ try {
 } catch {
     Write-Output "Erreur lors de la lecture de la configuration : $_"
     $configMissing = $true
+    exit
 }
 
 # Si $init est defini, lancer le mode de configuration
