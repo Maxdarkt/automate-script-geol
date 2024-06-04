@@ -8,6 +8,9 @@ param (
 # Initialisation de $config a $null
 $config = $null
 
+# Initialisation de $folderArray
+$folderArray = @()
+
 # Fonction pour ouvrir une boîte de dialogue de selection de dossier
 function Select-FolderDialog {
     param (
@@ -110,13 +113,8 @@ $destinationPath = $config.DestinationPath
 $isShutDown = $config.isShutDown
 $delayShutDown = $config.delayShutDown
 
-$oldFolderPath = Join-Path -Path $sourcePath -ChildPath "_OLD"
+$parentSourcePath = Split-Path -Parent $sourcePath
 $logFolderPath = Join-Path -Path $sourcePath -ChildPath "_logs"
-
-# Creez les dossiers _OLD et _logs s'ils n'existent pas
-if (-Not (Test-Path -Path $oldFolderPath)) {
-    New-Item -ItemType Directory -Path $oldFolderPath
-}
 
 if (-Not (Test-Path -Path $logFolderPath)) {
     New-Item -ItemType Directory -Path $logFolderPath
@@ -124,9 +122,10 @@ if (-Not (Test-Path -Path $logFolderPath)) {
 
 # Log de sauvegarde
 $logPath = Join-Path -Path $logFolderPath -ChildPath "backup_log.txt"
+Add-Content -Path $logPath -Value "--------------- Debut de la tache a $(Get-Date) ---------------" -Encoding UTF8
 
-# Obtenir les dossiers a la racine du dossier source, en excluant _OLD et _logs
-$folders = Get-ChildItem -Path $sourcePath -Directory | Where-Object { $_.Name -notin "_OLD", "_logs" }
+# Obtenir les dossiers a la racine du dossier source, en excluant et _logs
+$folders = Get-ChildItem -Path $sourcePath -Directory | Where-Object { $_.Name -notin "_logs" }
 
 # Verifier s'il y a des dossiers a copier
 if ($folders.Count -eq 0) {
@@ -147,15 +146,19 @@ function Get-DestinationPath {
         default { 
             $message = "$(Get-Date) - Le dossier suivant $folderName ne respecte la convention de nommage - Dossier ignore."
             Add-Content -Path $logPath -Value $message -Encoding UTF8
-            throw $message
+            return $null
         }
     }
 }
 
-# Copier les dossiers vers le dossier de destination approprie
+# Copier les dossiers sources vers le dossier de destination approprie
 foreach ($folder in $folders) {
     $source = $folder.FullName
     $destSubPath = Get-DestinationPath -folderName $folder.Name -destinationBase $destinationPath
+    # Si le dossier a une erreur de convention de nommage, on l'ignore
+    if($null -eq $destSubPath) {
+        continue
+    }
     $destination = Join-Path -Path $destSubPath -ChildPath $folder.Name
 
     # Creez le dossier de destination s'il n'existe pas
@@ -163,23 +166,49 @@ foreach ($folder in $folders) {
         New-Item -ItemType Directory -Path $destSubPath -Force
     }
 
-    Write-Output "Copie de $($folder.Name) vers $destination..."
-    Copy-Item -Path $source -Destination $destination -Recurse
+    Write-Output "Copie de $($folder.Name) vers $destSubPath..."
+    Copy-Item -Path $source -Destination $destSubPath -Recurse -Force
 }
 
-# Deplacer les dossiers vers le dossier _OLD
+# Deplacer les dossiers dans le dossier parent du dossier source
 foreach ($folder in $folders) {
     $source = $folder.FullName
-    $destination = Join-Path -Path $oldFolderPath -ChildPath $folder.Name
+    $destSubPath = Get-DestinationPath -folderName $folder.Name -destinationBase $parentSourcePath
+    # Si le dossier a une erreur de convention de nommage, on l'ignore
+    if($null -eq $destSubPath) {
+        continue
+    }
+    $destination = Join-Path -Path $destSubPath -ChildPath $folder.Name
 
-    Write-Output "Deplacement de $($folder.Name) vers $destination..."
-    Move-Item -Path $source -Destination $destination
+    # Creez le dossier de destination s'il n'existe pas
+    if (-Not (Test-Path -Path $destSubPath)) {
+        New-Item -ItemType Directory -Path $destSubPath -Force
+    }
+
+    Write-Output "Copie de $($folder.Name) vers $destSubPath..."
+    Copy-Item -Path $source -Destination $destSubPath -Recurse -Force
+
+    if (Test-Path -Path $destination) {
+        Remove-Item -Path $source -Recurse -Force
+        Write-Output "Suppression de $($source)"
+    }
+
+    $folderArray += $folder.Name
 }
 
-# Ajouter au log de sauvegarde
-Add-Content -Path $logPath -Value "$(Get-Date) - Sauvegarde et deplacement des dossiers $($folders.Name) termines" -Encoding UTF8
+Write-Output $folderArray.length
 
-Write-Output "Sauvegarde et deplacement termines."
+# Ajouter au log de sauvegarde
+if($folderArray.length -gt 0) {
+    Add-Content -Path $logPath -Value "$(Get-Date) - Sauvegarde et deplacement des dossiers $($folderArray) termines." -Encoding UTF8
+    Write-Output "Sauvegarde et deplacement termines."
+} else {
+    Add-Content -Path $logPath -Value "$(Get-Date) - Aucun dossier n'a ete traites." -Encoding UTF8
+    Write-Output "Aucun dossiers."
+}
+Add-Content -Path $logPath -Value "--------------- Fin de la tache a $(Get-Date) ---------------" -Encoding UTF8
+Add-Content -Path $logPath -Value "" -Encoding UTF8
+
 
 # eteindre le PC apres la sauvegarde si configure
 if ($isShutDown -eq "Yes") {
